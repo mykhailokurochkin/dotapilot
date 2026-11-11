@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { GsiPayload } from '../types/gsi.ts';
 import { TimerEngine, type CoachAlert } from '../rules/timers.ts';
+import { AiAdvisor } from '../ai/advisor.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,8 +14,10 @@ export class GsiServer {
   private server: http.Server | null = null;
   private currentState: GsiPayload = {};
   private timerEngine = new TimerEngine();
+  private aiAdvisor = new AiAdvisor();
   private sseClients: Set<http.ServerResponse> = new Set();
   private currentAlerts: CoachAlert[] = [];
+  private currentAdvice: string = 'AI-коуч готовий аналізувати твою гру. Натисни кнопку або чекай ключових моментів!';
 
   constructor(port = 3000) {
     this.port = port;
@@ -60,7 +63,11 @@ export class GsiServer {
           this.sseClients.add(res);
 
           // Send current state immediately
-          res.write(`data: ${JSON.stringify({ state: this.currentState, alerts: this.currentAlerts })}\n\n`);
+          res.write(`data: ${JSON.stringify({
+            state: this.currentState,
+            alerts: this.currentAlerts,
+            advice: this.currentAdvice,
+          })}\n\n`);
 
           req.on('close', () => {
             this.sseClients.delete(res);
@@ -68,7 +75,19 @@ export class GsiServer {
           return;
         }
 
-        // 3. GSI POST Endpoint
+        // 3. Request on-demand AI Advice
+        if (req.method === 'POST' && req.url === '/api/advice') {
+          this.triggerAiAdvice().then((advice) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ advice }));
+          }).catch(() => {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'AI Error' }));
+          });
+          return;
+        }
+
+        // 4. GSI POST Endpoint
         if (req.method === 'POST' && (req.url === '/' || req.url === '/gsi')) {
           let body = '';
           req.on('data', (chunk) => {
@@ -97,7 +116,7 @@ export class GsiServer {
 
       this.server.listen(this.port, '0.0.0.0', () => {
         console.log(`\n======================================================`);
-        console.log(`🛡️  DotaPilot GSI Сервер успішно запущено!`);
+        console.log(`🛡️  DotaPilot GSI + AI Coach Сервер успішно запущено!`);
         console.log(`📊 Веб-дашборд:  http://localhost:${this.port}`);
         console.log(`🎮 GSI Ендпоінт: http://localhost:${this.port}/gsi`);
         console.log(`======================================================\n`);
@@ -106,20 +125,35 @@ export class GsiServer {
     });
   }
 
+  public async triggerAiAdvice(): Promise<string> {
+    const advice = await this.aiAdvisor.getAdvice(this.currentState);
+    this.currentAdvice = advice;
+    this.broadcast();
+    return advice;
+  }
+
   public updateState(newState: GsiPayload) {
-    // Merge new state fields into currentState
     this.currentState = {
       ...this.currentState,
       ...newState,
       map: { ...this.currentState.map, ...newState.map },
       player: { ...this.currentState.player, ...newState.player },
       hero: { ...this.currentState.hero, ...newState.hero },
+      items: { ...this.currentState.items, ...newState.items },
+      abilities: { ...this.currentState.abilities, ...newState.abilities },
     };
 
     this.currentAlerts = this.timerEngine.evaluate(this.currentState);
+    this.broadcast();
+  }
 
-    // Broadcast to all connected web clients
-    const eventData = `data: ${JSON.stringify({ state: this.currentState, alerts: this.currentAlerts })}\n\n`;
+  private broadcast() {
+    const eventData = `data: ${JSON.stringify({
+      state: this.currentState,
+      alerts: this.currentAlerts,
+      advice: this.currentAdvice,
+    })}\n\n`;
+
     for (const client of this.sseClients) {
       client.write(eventData);
     }

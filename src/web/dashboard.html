@@ -200,6 +200,28 @@
     .stat-val { font-size: 16px; font-weight: 700; margin-top: 2px; }
     .stat-val.gold { color: var(--gold); }
 
+    /* Items */
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .item-slot {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 11px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #cbd5e1;
+      word-break: break-word;
+    }
+
     /* Timers & Alerts */
     .alerts-list {
       display: flex;
@@ -229,14 +251,41 @@
 
     /* AI Coach Advice Box */
     .ai-box {
-      border: 1px solid rgba(224, 58, 58, 0.3);
+      border: 1px solid rgba(224, 58, 58, 0.4);
       background: linear-gradient(180deg, rgba(224, 58, 58, 0.08) 0%, rgba(22, 28, 38, 0.9) 100%);
     }
 
     .ai-text {
-      font-size: 14px;
+      font-size: 15px;
       line-height: 1.6;
-      color: #e3e8f0;
+      color: #f1f5f9;
+      background: rgba(0,0,0,0.25);
+      border-radius: 10px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .ai-btn {
+      background: linear-gradient(135deg, #e03a3a, #ff6b6b);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+    .ai-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+    .ai-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .toggle-row {
@@ -309,19 +358,35 @@
               <div class="stat-val" id="stat-gpm-xpm">0 / 0</div>
             </div>
           </div>
+
+          <!-- Items Grid -->
+          <div style="margin-top: 16px;">
+            <div class="stat-label" style="margin-bottom: 6px;">Інвентар</div>
+            <div class="items-grid" id="items-grid">
+              <div class="item-slot">-</div>
+              <div class="item-slot">-</div>
+              <div class="item-slot">-</div>
+              <div class="item-slot">-</div>
+              <div class="item-slot">-</div>
+              <div class="item-slot">-</div>
+            </div>
+          </div>
         </div>
 
         <!-- AI Coach Box -->
         <div class="card ai-box">
           <div class="card-title" style="color: #ff7675;">
-            <span>⚡ Рекомендації AI Коуча</span>
-            <label class="toggle-row">
-              <input type="checkbox" id="voice-toggle" checked>
-              <span>Озвучувати підказки (Голос)</span>
-            </label>
+            <span>⚡ Рекомендації AI Коуча (Gemini)</span>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <label class="toggle-row">
+                <input type="checkbox" id="voice-toggle" checked>
+                <span>Озвучувати (Голос)</span>
+              </label>
+              <button class="ai-btn" id="ask-ai-btn">⚡ Запитати пораду</button>
+            </div>
           </div>
           <div class="ai-text" id="ai-advice">
-            Очікуємо початок матчу... Після старту драфту тут з'являться індивідуальні поради по контрпіках, предметах і фокусу на лініях.
+            AI-коуч готовий аналізувати твою гру. Натисни кнопку або чекай порад під час важливих фаз!
           </div>
         </div>
       </div>
@@ -354,11 +419,14 @@
     const statCs = document.getElementById('stat-cs');
     const statNetworth = document.getElementById('stat-networth');
     const statGpmXpm = document.getElementById('stat-gpm-xpm');
+    const itemsGrid = document.getElementById('items-grid');
     const alertsList = document.getElementById('alerts-list');
     const aiAdvice = document.getElementById('ai-advice');
+    const askAiBtn = document.getElementById('ask-ai-btn');
     const voiceToggle = document.getElementById('voice-toggle');
 
     let spokenAlerts = new Set();
+    let lastSpokenAdvice = '';
 
     function speak(text) {
       if (!voiceToggle.checked || !window.speechSynthesis) return;
@@ -390,8 +458,26 @@
       }
     };
 
+    askAiBtn.addEventListener('click', async () => {
+      askAiBtn.disabled = true;
+      askAiBtn.innerText = '⏳ AI думає...';
+      try {
+        const res = await fetch('/api/advice', { method: 'POST' });
+        const json = await res.json();
+        if (json.advice) {
+          aiAdvice.innerText = json.advice;
+          speak(json.advice);
+        }
+      } catch (e) {
+        console.error('AI Request Error:', e);
+      } finally {
+        askAiBtn.disabled = false;
+        askAiBtn.innerText = '⚡ Запитати пораду';
+      }
+    });
+
     function updateUI(data) {
-      const { state, alerts } = data;
+      const { state, alerts, advice } = data;
       if (!state) return;
 
       statusPill.className = 'status-pill';
@@ -427,6 +513,30 @@
         statCs.innerText = `${state.player.last_hits || 0} / ${state.player.denies || 0}`;
         statNetworth.innerText = (state.player.net_worth || state.player.gold || 0).toLocaleString();
         statGpmXpm.innerText = `${state.player.gold_per_min || 0} / ${state.player.xp_per_min || 0}`;
+      }
+
+      // Items
+      if (state.items) {
+        const slots = [];
+        for (let i = 0; i < 6; i++) {
+          const item = state.items[`slot${i}`];
+          if (item && item.name && item.name !== 'empty') {
+            const cleanItem = item.name.replace('item_', '').replace(/_/g, ' ');
+            slots.push(`<div class="item-slot">${cleanItem}</div>`);
+          } else {
+            slots.push('<div class="item-slot" style="opacity:0.4;">-</div>');
+          }
+        }
+        itemsGrid.innerHTML = slots.join('');
+      }
+
+      // Advice
+      if (advice && advice !== aiAdvice.innerText) {
+        aiAdvice.innerText = advice;
+        if (advice !== lastSpokenAdvice && advice.length > 20) {
+          lastSpokenAdvice = advice;
+          speak(advice);
+        }
       }
 
       // Alerts
