@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>DotaPilot HUD Overlay</title>
+  <style>
+    :root {
+      --gold: #f5c518;
+      --green: #2ecc71;
+      --red: #e03a3a;
+      --blue: #3498db;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: transparent !important;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .hud-container {
+      position: fixed;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    /* Top HUD Bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 30px;
+      padding: 6px 18px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .badge-logo {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, #e03a3a, #ff7675);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 12px;
+    }
+
+    .clock-widget {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--gold);
+      letter-spacing: 0.5px;
+    }
+
+    .hud-divider {
+      width: 1px;
+      height: 16px;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .hud-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    .status-dot.danger {
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
+
+    /* Timers pill */
+    .timer-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245, 197, 24, 0.16);
+      color: var(--gold);
+      border: 1px solid rgba(245, 197, 24, 0.35);
+      padding: 3px 10px;
+      border-radius: 14px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* AI Advice Floating Card */
+    .advice-card {
+      max-width: 520px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(224, 58, 58, 0.35);
+      border-radius: 16px;
+      padding: 10px 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .advice-icon {
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    .advice-content {
+      font-size: 12px;
+      line-height: 1.45;
+      color: #e2e8f0;
+    }
+
+    .advice-content strong {
+      color: #ff7675;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="hud-container">
+    <!-- Top HUD Bar -->
+    <div class="top-bar">
+      <div class="badge-logo">DOTAPILOT</div>
+      <div class="clock-widget" id="clock">00:00</div>
+      <div class="hud-divider"></div>
+      <div class="hud-stat" id="hero-stat">
+        <span id="hero-name">Герой</span>
+        <span id="hero-kda" style="color: var(--muted); font-size: 11px;">(0/0/0)</span>
+      </div>
+      <div class="hud-divider"></div>
+      <div class="hud-stat">
+        <div class="status-dot" id="bb-dot"></div>
+        <span id="bb-text" style="font-size: 11px;">Байбек</span>
+      </div>
+      <div id="timers-container" style="display: flex; gap: 8px;">
+        <div class="timer-pill" id="next-timer">Руна: --</div>
+      </div>
+    </div>
+
+    <!-- AI Advice Box -->
+    <div class="advice-card" id="advice-box">
+      <div class="advice-icon">⚡</div>
+      <div class="advice-content" id="advice-text">
+        AI-тренер активний. Чекаю наступних ігрових подій...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const clockEl = document.getElementById('clock');
+    const heroNameEl = document.getElementById('hero-name');
+    const heroKdaEl = document.getElementById('hero-kda');
+    const bbDotEl = document.getElementById('bb-dot');
+    const bbTextEl = document.getElementById('bb-text');
+    const nextTimerEl = document.getElementById('next-timer');
+    const adviceTextEl = document.getElementById('advice-text');
+
+    function formatTime(seconds) {
+      if (seconds === undefined) return '00:00';
+      const isNeg = seconds < 0;
+      const abs = Math.abs(seconds);
+      const m = Math.floor(abs / 60);
+      const s = abs % 60;
+      return `${isNeg ? '-' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    const eventSource = new EventSource('/events');
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const { state, alerts, advice } = data;
+        if (!state) return;
+
+        // Clock
+        if (state.map?.clock_time !== undefined) {
+          clockEl.innerText = formatTime(state.map.clock_time);
+        }
+
+        // Hero
+        if (state.hero?.name) {
+          const clean = state.hero.name.replace('npc_dota_hero_', '').replace(/_/g, ' ');
+          heroNameEl.innerText = clean.charAt(0).toUpperCase() + clean.slice(1);
+        }
+        if (state.player) {
+          heroKdaEl.innerText = `(${state.player.kills || 0}/${state.player.deaths || 0}/${state.player.assists || 0})`;
+        }
+
+        // Buyback
+        if (state.hero) {
+          const bbCost = state.hero.buyback_cost || 0;
+          const gold = state.player?.gold || 0;
+          const cd = state.hero.buyback_cooldown || 0;
+
+          if (cd > 0) {
+            bbDotEl.className = 'status-dot danger';
+            bbTextEl.innerText = `ББ кд (${cd}с)`;
+          } else if (gold >= bbCost) {
+            bbDotEl.className = 'status-dot';
+            bbTextEl.innerText = 'ББ готовий';
+          } else {
+            bbDotEl.className = 'status-dot danger';
+            bbTextEl.innerText = `ББ -${bbCost - gold}`;
+          }
+        }
+
+        // Timers
+        if (alerts && alerts.length > 0) {
+          const first = alerts[0];
+          nextTimerEl.innerText = `${first.title}: ${first.timeRemaining !== undefined ? first.timeRemaining + 'с' : 'зараз'}`;
+          nextTimerEl.style.display = 'flex';
+        } else {
+          nextTimerEl.style.display = 'none';
+        }
+
+        // Advice
+        if (advice && advice.length > 5) {
+          adviceTextEl.innerHTML = advice.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+      } catch (e) {
+        console.error('SSE Error:', e);
+      }
+    };
+  </script>
+</body>
+</html>

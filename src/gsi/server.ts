@@ -37,13 +37,27 @@ export class GsiServer {
           return;
         }
 
-        // 1. Dashboard UI
+        // 1. Dashboard & Overlay UI
         if (req.method === 'GET' && (req.url === '/' || req.url === '/dashboard')) {
           const htmlPath = path.join(__dirname, '../web/dashboard.html');
           fs.readFile(htmlPath, 'utf8', (err, content) => {
             if (err) {
               res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
               res.end('Помилка завантаження дашборду');
+              return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(content);
+          });
+          return;
+        }
+
+        if (req.method === 'GET' && req.url === '/overlay') {
+          const htmlPath = path.join(__dirname, '../web/overlay.html');
+          fs.readFile(htmlPath, 'utf8', (err, content) => {
+            if (err) {
+              res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+              res.end('Помилка завантаження оверлею');
               return;
             }
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
