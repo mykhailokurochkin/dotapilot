@@ -1,4 +1,4 @@
-import type { GsiPayload } from '../types/gsi.js';
+import type { GsiPayload } from '../types/gsi.ts';
 
 export interface CoachAlert {
   id: string;

@@ -1,4 +1,4 @@
-import type { GsiPayload } from '../types/gsi.js';
+import type { GsiPayload } from '../types/gsi.ts';
 
 const PORT = process.env.PORT || 3000;
 const URL = `http://127.0.0.1:${PORT}/gsi`;

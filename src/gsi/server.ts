@@ -2,8 +2,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { GsiPayload } from '../types/gsi.js';
-import { TimerEngine, type CoachAlert } from '../rules/timers.js';
+import type { GsiPayload } from '../types/gsi.ts';
+import { TimerEngine, type CoachAlert } from '../rules/timers.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
