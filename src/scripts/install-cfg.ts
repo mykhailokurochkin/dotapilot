@@ -28,22 +28,28 @@ const localCfgPath = path.join(process.cwd(), fileName);
 
 // 1. Write locally
 fs.writeFileSync(localCfgPath, cfgContent, 'utf8');
-console.log(`✅ Конфігураційний файл успішно згенеровано: ${localCfgPath}\n`);
+console.log(`✅ Конфігураційний файл збережено в проєкті: ${localCfgPath}\n`);
 
-// 2. Possible Steam Dota 2 cfg paths
-const possiblePaths = [
-  // macOS
-  path.join(os.homedir(), 'Library/Application Support/Steam/steamapps/common/dota 2 beta/game/dota/cfg/gamestate_integration'),
-  // Windows default (if running on Windows)
-  'C:\\Program Files (x86)\\Steam\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
-  'D:\\SteamLibrary\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
-  'E:\\SteamLibrary\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
-];
+// 2. Check platform-specific Dota 2 paths
+const isMac = process.platform === 'darwin';
+const isWin = process.platform === 'win32';
+
+let possiblePaths: string[] = [];
+if (isMac) {
+  possiblePaths.push(path.join(os.homedir(), 'Library/Application Support/Steam/steamapps/common/dota 2 beta/game/dota/cfg/gamestate_integration'));
+} else if (isWin) {
+  possiblePaths.push(
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
+    'D:\\SteamLibrary\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
+    'E:\\SteamLibrary\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration'
+  );
+}
 
 let installedPath = null;
 for (const p of possiblePaths) {
   try {
-    if (fs.existsSync(path.dirname(p))) {
+    const parentDir = path.dirname(p);
+    if (fs.existsSync(parentDir)) {
       fs.mkdirSync(p, { recursive: true });
       fs.writeFileSync(path.join(p, fileName), cfgContent, 'utf8');
       installedPath = path.join(p, fileName);
@@ -58,7 +64,8 @@ if (installedPath) {
   console.log(`🎉 Файл автоматично встановлено прямо в папку Доти:`);
   console.log(`   ${installedPath}`);
 } else {
-  console.log(`👉 Щоб активувати GSI у Доти: скопіюйте цей файл у папку:`);
-  console.log(`   dota 2 beta/game/dota/cfg/gamestate_integration/${fileName}`);
-  console.log(`\n(Якщо папки 'gamestate_integration' ще немає — створіть її).`);
+  console.log(`👉 Щоб гра надсилала дані в DotaPilot:`);
+  console.log(`   Скопіюйте файл "${fileName}" у папку:`);
+  console.log(`   .../dota 2 beta/game/dota/cfg/gamestate_integration/\n`);
+  console.log(`   (Якщо папки 'gamestate_integration' немає — просто створіть її).`);
 }
