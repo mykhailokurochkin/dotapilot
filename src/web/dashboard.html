@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DotaPilot — AI Coach & HUD</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --card-bg: rgba(22, 28, 38, 0.85);
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #e03a3a;
+      --accent-glow: rgba(224, 58, 58, 0.35);
+      --gold: #f5c518;
+      --green: #2ecc71;
+      --mana: #3498db;
+      --text: #f0f2f5;
+      --muted: #8b9bb4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #171f2c 0%, var(--bg) 70%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #e03a3a, #ff6b6b);
+      color: white;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 8px;
+      letter-spacing: 1px;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      background: rgba(46, 204, 113, 0.15);
+      color: var(--green);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(46, 204, 113, 0.3);
+    }
+    .status-pill.waiting {
+      background: rgba(245, 197, 24, 0.15);
+      color: var(--gold);
+      border-color: rgba(245, 197, 24, 0.3);
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .grid-main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+    }
+
+    @media (max-width: 850px) {
+      .grid-main { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .card-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Hero & Stats */
+    .hero-panel {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .hero-avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 12px;
+      background: #1b2432;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--muted);
+      position: relative;
+    }
+
+    .hero-lvl {
+      position: absolute;
+      bottom: -6px;
+      right: -6px;
+      background: var(--gold);
+      color: #000;
+      font-weight: 800;
+      font-size: 12px;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    .hero-info h2 {
+      font-size: 22px;
+      margin-bottom: 4px;
+    }
+
+    .hero-bars {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bar-wrap {
+      background: #121720;
+      border-radius: 6px;
+      height: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .hp-fill { background: linear-gradient(90deg, #27ae60, #2ecc71); }
+    .mana-fill { background: linear-gradient(90deg, #2980b9, #3498db); }
+    .bar-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+      background: rgba(0,0,0,0.2);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .stat-item { text-align: center; }
+    .stat-label { font-size: 11px; color: var(--muted); }
+    .stat-val { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .stat-val.gold { color: var(--gold); }
+
+    /* Timers & Alerts */
+    .alerts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .alert-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.03);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+    }
+    .alert-box.timer { border-left-color: var(--gold); }
+    .alert-box.tip { border-left-color: var(--green); }
+
+    .alert-meta h4 { font-size: 14px; margin-bottom: 2px; }
+    .alert-meta p { font-size: 12px; color: var(--muted); }
+    .alert-badge {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    /* AI Coach Advice Box */
+    .ai-box {
+      border: 1px solid rgba(224, 58, 58, 0.3);
+      background: linear-gradient(180deg, rgba(224, 58, 58, 0.08) 0%, rgba(22, 28, 38, 0.9) 100%);
+    }
+
+    .ai-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #e3e8f0;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-group">
+        <div class="logo-badge">DOTAPILOT</div>
+        <span style="font-weight: 600; font-size: 14px; color: var(--muted);">AI Assistant & Live GSI</span>
+      </div>
+      <div id="status-pill" class="status-pill waiting">
+        <div class="dot"></div>
+        <span id="status-text">Очікування підключення Доти...</span>
+      </div>
+    </header>
+
+    <div class="grid-main">
+      <!-- Left Column: Hero & State -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="card">
+          <div class="card-title">
+            <span>Статус Гри</span>
+            <span id="clock-display" style="color: var(--gold); font-size: 16px; font-weight: 800;">00:00</span>
+          </div>
+
+          <div class="hero-panel">
+            <div class="hero-avatar">
+              <span id="hero-icon">🛡️</span>
+              <div class="hero-lvl" id="hero-lvl">1</div>
+            </div>
+            <div class="hero-bars">
+              <div class="hero-info">
+                <h2 id="hero-name">Герой не вибраний</h2>
+              </div>
+              <div class="bar-wrap">
+                <div id="hp-fill" class="bar-fill hp-fill" style="width: 100%;"></div>
+                <div id="hp-text" class="bar-text">1000 / 1000</div>
+              </div>
+              <div class="bar-wrap">
+                <div id="mana-fill" class="bar-fill mana-fill" style="width: 100%;"></div>
+                <div id="mana-text" class="bar-text">500 / 500</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-item">
+              <div class="stat-label">K / D / A</div>
+              <div class="stat-val" id="stat-kda">0 / 0 / 0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Ластхіти / Денаї</div>
+              <div class="stat-val" id="stat-cs">0 / 0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Нетворс</div>
+              <div class="stat-val gold" id="stat-networth">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">GPM / XPM</div>
+              <div class="stat-val" id="stat-gpm-xpm">0 / 0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Coach Box -->
+        <div class="card ai-box">
+          <div class="card-title" style="color: #ff7675;">
+            <span>⚡ Рекомендації AI Коуча</span>
+            <label class="toggle-row">
+              <input type="checkbox" id="voice-toggle" checked>
+              <span>Озвучувати підказки (Голос)</span>
+            </label>
+          </div>
+          <div class="ai-text" id="ai-advice">
+            Очікуємо початок матчу... Після старту драфту тут з'являться індивідуальні поради по контрпіках, предметах і фокусу на лініях.
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Timers -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="card">
+          <div class="card-title">Таймери та Сповіщення</div>
+          <div class="alerts-list" id="alerts-list">
+            <div style="font-size: 13px; color: var(--muted); text-align: center; padding: 20px 0;">
+              Немає активних тривог
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const statusPill = document.getElementById('status-pill');
+    const statusText = document.getElementById('status-text');
+    const clockDisplay = document.getElementById('clock-display');
+    const heroName = document.getElementById('hero-name');
+    const heroLvl = document.getElementById('hero-lvl');
+    const hpFill = document.getElementById('hp-fill');
+    const hpText = document.getElementById('hp-text');
+    const manaFill = document.getElementById('mana-fill');
+    const manaText = document.getElementById('mana-text');
+    const statKda = document.getElementById('stat-kda');
+    const statCs = document.getElementById('stat-cs');
+    const statNetworth = document.getElementById('stat-networth');
+    const statGpmXpm = document.getElementById('stat-gpm-xpm');
+    const alertsList = document.getElementById('alerts-list');
+    const aiAdvice = document.getElementById('ai-advice');
+    const voiceToggle = document.getElementById('voice-toggle');
+
+    let spokenAlerts = new Set();
+
+    function speak(text) {
+      if (!voiceToggle.checked || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'uk-UA';
+      utterance.rate = 1.05;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function formatTime(seconds) {
+      if (seconds === undefined) return '00:00';
+      const isNeg = seconds < 0;
+      const absSec = Math.abs(seconds);
+      const m = Math.floor(absSec / 60);
+      const s = absSec % 60;
+      return `${isNeg ? '-' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // Connect Server-Sent Events (SSE)
+    const eventSource = new EventSource('/events');
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        updateUI(data);
+      } catch (e) {
+        console.error('SSE Error:', e);
+      }
+    };
+
+    function updateUI(data) {
+      const { state, alerts } = data;
+      if (!state) return;
+
+      statusPill.className = 'status-pill';
+      statusText.innerText = 'Дота підключена (Живий GSI)';
+
+      // Clock
+      if (state.map?.clock_time !== undefined) {
+        clockDisplay.innerText = formatTime(state.map.clock_time);
+      }
+
+      // Hero
+      if (state.hero?.name) {
+        const cleanName = state.hero.name.replace('npc_dota_hero_', '').replace(/_/g, ' ');
+        heroName.innerText = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        heroLvl.innerText = state.hero.level || 1;
+
+        const hp = state.hero.health || 0;
+        const maxHp = state.hero.max_health || 1;
+        const hpPct = Math.round((hp / maxHp) * 100);
+        hpFill.style.width = `${hpPct}%`;
+        hpText.innerText = `${hp} / ${maxHp}`;
+
+        const mana = state.hero.mana || 0;
+        const maxMana = state.hero.max_mana || 1;
+        const manaPct = Math.round((mana / maxMana) * 100);
+        manaFill.style.width = `${manaPct}%`;
+        manaText.innerText = `${mana} / ${maxMana}`;
+      }
+
+      // Stats
+      if (state.player) {
+        statKda.innerText = `${state.player.kills || 0} / ${state.player.deaths || 0} / ${state.player.assists || 0}`;
+        statCs.innerText = `${state.player.last_hits || 0} / ${state.player.denies || 0}`;
+        statNetworth.innerText = (state.player.net_worth || state.player.gold || 0).toLocaleString();
+        statGpmXpm.innerText = `${state.player.gold_per_min || 0} / ${state.player.xp_per_min || 0}`;
+      }
+
+      // Alerts
+      if (alerts && alerts.length > 0) {
+        alertsList.innerHTML = alerts.map(a => `
+          <div class="alert-box ${a.type}">
+            <div class="alert-meta">
+              <h4>${a.title}</h4>
+              <p>${a.message}</p>
+            </div>
+            ${a.timeRemaining !== undefined ? `<div class="alert-badge">${a.timeRemaining}s</div>` : ''}
+          </div>
+        `).join('');
+
+        // Voice trigger
+        alerts.forEach(a => {
+          if (!spokenAlerts.has(a.id)) {
+            spokenAlerts.add(a.id);
+            speak(a.title + '. ' + a.message);
+          }
+        });
+      } else {
+        alertsList.innerHTML = '<div style="font-size: 13px; color: var(--muted); text-align: center; padding: 20px 0;">Усі таймінги спокійні</div>';
+      }
+    }
+  </script>
+</body>
+</html>

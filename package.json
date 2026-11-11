@@ -1,0 +1,16 @@
+{
+  "name": "dotapilot",
+  "version": "0.1.0",
+  "description": "DotaPilot - Lightweight AI Coach & Real-Time Assistant for Dota 2",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "dev": "node --watch --experimental-strip-types src/index.ts",
+    "install:cfg": "node --experimental-strip-types src/scripts/install-cfg.ts",
+    "mock": "node --experimental-strip-types src/scripts/send-mock.ts"
+  },
+  "keywords": ["dota2", "gsi", "coach", "ai", "dotapilot"],
+  "author": "",
+  "license": "MIT"
+}
