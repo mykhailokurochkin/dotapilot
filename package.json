@@ -8,10 +8,18 @@
     "start": "node --experimental-strip-types src/index.ts",
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "overlay": "./bin/dotapilot-overlay",
-    "build:overlay": "clang -O2 -framework Cocoa -framework WebKit src/overlay/main.m -o bin/dotapilot-overlay",
+    "build:overlay": "mkdir -p bin && clang -O2 -framework Cocoa -framework WebKit src/overlay/main.m -o bin/dotapilot-overlay",
     "stop": "pkill -f 'dotapilot' || true",
     "install:cfg": "node --experimental-strip-types src/scripts/install-cfg.ts",
-    "mock": "node --experimental-strip-types src/scripts/send-mock.ts"
+    "mock": "node --experimental-strip-types src/scripts/send-mock.ts",
+    "simulate": "node --experimental-strip-types src/scripts/simulate-match.ts"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mykhailokurochkin/dotapilot.git"
   },
   "keywords": ["dota2", "gsi", "coach", "ai", "dotapilot"],
   "author": "",

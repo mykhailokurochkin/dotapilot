@@ -41,6 +41,9 @@ export class AiAdvisor {
     }
 
     const heroName = state.hero?.name?.replace('npc_dota_hero_', '') || 'Unknown';
+    if (!state.hero || !state.hero.name || heroName === 'Unknown' || state.map?.game_state === 'DOTA_GAMETIME_STATE_WAIT_FOR_PLAYERS_TO_LOAD') {
+      return 'Очікуємо початок матчу та вибір героя для тактичного аналізу.';
+    }
     const heroLvl = state.hero?.level || 1;
     const kills = state.player?.kills || 0;
     const deaths = state.player?.deaths || 0;

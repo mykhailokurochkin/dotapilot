@@ -33,16 +33,21 @@ console.log(`✅ Конфігураційний файл збережено в �
 // 2. Check platform-specific Dota 2 paths
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
+const isLinux = process.platform === 'linux';
 
 let possiblePaths: string[] = [];
 if (isMac) {
   possiblePaths.push(path.join(os.homedir(), 'Library/Application Support/Steam/steamapps/common/dota 2 beta/game/dota/cfg/gamestate_integration'));
-} else if (isWin) {
+} else if (isLinux) {
   possiblePaths.push(
-    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
-    'D:\\SteamLibrary\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration',
-    'E:\\SteamLibrary\\steamapps\\common\\dota 2 beta\\game\\dota\\cfg\\gamestate_integration'
+    path.join(os.homedir(), '.steam/steam/steamapps/common/dota 2 beta/game/dota/cfg/gamestate_integration'),
+    path.join(os.homedir(), '.local/share/Steam/steamapps/common/dota 2 beta/game/dota/cfg/gamestate_integration')
   );
+} else if (isWin) {
+  for (const drive of ['C:', 'D:', 'E:', 'F:']) {
+    possiblePaths.push(path.join(drive, 'Program Files (x86)', 'Steam', 'steamapps', 'common', 'dota 2 beta', 'game', 'dota', 'cfg', 'gamestate_integration'));
+    possiblePaths.push(path.join(drive, 'SteamLibrary', 'steamapps', 'common', 'dota 2 beta', 'game', 'dota', 'cfg', 'gamestate_integration'));
+  }
 }
 
 let installedPath = null;

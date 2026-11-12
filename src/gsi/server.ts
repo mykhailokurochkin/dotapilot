@@ -139,6 +139,9 @@ export class GsiServer {
           let body = '';
           req.on('data', (chunk) => {
             body += chunk;
+            if (body.length > 5 * 1024 * 1024) { // 5MB safety limit
+              req.destroy();
+            }
           });
 
           req.on('end', () => {
@@ -166,6 +169,16 @@ export class GsiServer {
 
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not Found');
+      });
+
+      this.server.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          console.error(`\n❌ Помилка: Порт ${this.port} вже використовується іншою програмою!`);
+          console.error(`👉 Запустіть з іншим портом: PORT=3001 pnpm start або зупиніть старий процес: pnpm run stop\n`);
+          process.exit(1);
+        } else {
+          console.error('Помилка сервера:', err);
+        }
       });
 
       this.server.listen(this.port, '0.0.0.0', () => {
