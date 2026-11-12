@@ -19,25 +19,54 @@ export class GsiServer {
   private currentAlerts: CoachAlert[] = [];
   private currentAdvice: string = 'AI-коуч готовий аналізувати твою гру. Натисни кнопку або чекай ключових моментів!';
 
+  // Live Dota 2 GSI sync mode
+  public isSimulationMode: boolean = false;
+
+  // Performance telemetry
+  private lastBroadcastTime: number = 0;
+  private lastClockTime: number = -999;
+  private gsiPacketsReceived: number = 0;
+  private gsiPacketsPerSecond: number = 0;
+  private statsTimer: NodeJS.Timeout | null = null;
+
   constructor(port = 3000) {
     this.port = port;
   }
 
   public start(): Promise<void> {
+    // Watch web assets for live auto-reload
+    try {
+      const webDir = path.join(__dirname, '../web');
+      fs.watch(webDir, (eventType, filename) => {
+        if (filename && (filename.endsWith('.html') || filename.endsWith('.css') || filename.endsWith('.js'))) {
+          console.log(`🔄 Зміна файлу ${filename} — оновлюємо сторінки оверлею та дашборду...`);
+          this.broadcastReload();
+        }
+      });
+    } catch (e) {
+      // Ignore watch errors if unsupported
+    }
+
+    // 1-second interval to compute incoming packet rate
+    this.statsTimer = setInterval(() => {
+      this.gsiPacketsPerSecond = this.gsiPacketsReceived;
+      this.gsiPacketsReceived = 0;
+    }, 1000);
+
     return new Promise((resolve) => {
       this.server = http.createServer((req, res) => {
-        // CORS headers
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+        // Instant response for CORS preflight
         if (req.method === 'OPTIONS') {
-          res.writeHead(204);
+          res.writeHead(204, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+          });
           res.end();
           return;
         }
 
-        // 1. Dashboard & Overlay UI
+        // 1. Dashboard UI
         if (req.method === 'GET' && (req.url === '/' || req.url === '/dashboard')) {
           const htmlPath = path.join(__dirname, '../web/dashboard.html');
           fs.readFile(htmlPath, 'utf8', (err, content) => {
@@ -52,6 +81,7 @@ export class GsiServer {
           return;
         }
 
+        // 2. HUD Overlay UI
         if (req.method === 'GET' && req.url === '/overlay') {
           const htmlPath = path.join(__dirname, '../web/overlay.html');
           fs.readFile(htmlPath, 'utf8', (err, content) => {
@@ -66,22 +96,19 @@ export class GsiServer {
           return;
         }
 
-        // 2. Server-Sent Events (SSE)
+        // 3. Server-Sent Events (SSE) stream
         if (req.method === 'GET' && req.url === '/events') {
           res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
           });
 
           this.sseClients.add(res);
 
-          // Send current state immediately
-          res.write(`data: ${JSON.stringify({
-            state: this.currentState,
-            alerts: this.currentAlerts,
-            advice: this.currentAdvice,
-          })}\n\n`);
+          // Send current state immediately on connect
+          res.write(`data: ${JSON.stringify(this.buildPayload())}\n\n`);
 
           req.on('close', () => {
             this.sseClients.delete(res);
@@ -89,10 +116,13 @@ export class GsiServer {
           return;
         }
 
-        // 3. Request on-demand AI Advice
+        // 4. Request on-demand AI Advice (non-blocking)
         if (req.method === 'POST' && req.url === '/api/advice') {
           this.triggerAiAdvice().then((advice) => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.writeHead(200, {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            });
             res.end(JSON.stringify({ advice }));
           }).catch(() => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -101,24 +131,34 @@ export class GsiServer {
           return;
         }
 
-        // 4. GSI POST Endpoint
-        if (req.method === 'POST' && (req.url === '/' || req.url === '/gsi')) {
+        // 5. GSI POST Endpoint (Ultra-fast non-blocking return)
+        if (req.method === 'POST' && (req.url === '/' || req.url?.startsWith('/gsi'))) {
+          this.gsiPacketsReceived++;
+          const isMock = req.url.includes('mock=1') || req.headers['x-mock'] === 'true';
+
           let body = '';
           req.on('data', (chunk) => {
             body += chunk;
           });
 
           req.on('end', () => {
-            try {
-              if (body) {
+            // Reply immediately to Dota 2 so its network thread never waits
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+
+            // If in simulation mode, only accept mock payloads
+            if (this.isSimulationMode && !isMock) {
+              return; // Ignore live Dota packets safely
+            }
+
+            // Parse and process asynchronously
+            if (body) {
+              try {
                 const parsed = JSON.parse(body) as GsiPayload;
                 this.updateState(parsed);
+              } catch {
+                // Ignore malformed chunks
               }
-              res.writeHead(200, { 'Content-Type': 'text/plain' });
-              res.end('OK');
-            } catch (e) {
-              res.writeHead(400, { 'Content-Type': 'text/plain' });
-              res.end('Bad Request');
             }
           });
           return;
@@ -130,9 +170,10 @@ export class GsiServer {
 
       this.server.listen(this.port, '0.0.0.0', () => {
         console.log(`\n======================================================`);
-        console.log(`🛡️  DotaPilot GSI + AI Coach Сервер успішно запущено!`);
+        console.log(`🛡️  DotaPilot GSI Engine (Zero-Lag Optimized) запущено!`);
         console.log(`📊 Веб-дашборд:  http://localhost:${this.port}`);
-        console.log(`🎮 GSI Ендпоінт: http://localhost:${this.port}/gsi`);
+        console.log(`🪟 HUD Оверлей:   http://localhost:${this.port}/overlay`);
+        console.log(`🎮 GSI Ендпоінт:  http://localhost:${this.port}/gsi`);
         console.log(`======================================================\n`);
         resolve();
       });
@@ -157,23 +198,56 @@ export class GsiServer {
       abilities: { ...this.currentState.abilities, ...newState.abilities },
     };
 
+    const clock = this.currentState.map?.clock_time;
+    const now = Date.now();
+
+    // Check alerts
     this.currentAlerts = this.timerEngine.evaluate(this.currentState);
-    this.broadcast();
+
+    // Throttle SSE broadcasts: broadcast only if game clock changed or at least 500ms passed
+    if (clock !== this.lastClockTime || (now - this.lastBroadcastTime >= 500)) {
+      this.lastClockTime = clock ?? -999;
+      this.lastBroadcastTime = now;
+      this.broadcast();
+    }
   }
 
-  private broadcast() {
-    const eventData = `data: ${JSON.stringify({
+  private buildPayload() {
+    const mem = process.memoryUsage();
+    return {
       state: this.currentState,
       alerts: this.currentAlerts,
       advice: this.currentAdvice,
-    })}\n\n`;
+      perf: {
+        rssMb: Math.round(mem.rss / (1024 * 1024)),
+        heapUsedMb: Math.round(mem.heapUsed / (1024 * 1024)),
+        gsiRate: this.gsiPacketsPerSecond,
+      },
+    };
+  }
 
+  private broadcast() {
+    if (this.sseClients.size === 0) return;
+
+    const eventData = `data: ${JSON.stringify(this.buildPayload())}\n\n`;
     for (const client of this.sseClients) {
       client.write(eventData);
     }
   }
 
+  public broadcastReload() {
+    if (this.sseClients.size === 0) return;
+    const msg = `data: ${JSON.stringify({ type: 'reload' })}\n\n`;
+    for (const client of this.sseClients) {
+      client.write(msg);
+    }
+  }
+
   public stop(): Promise<void> {
+    if (this.statsTimer) {
+      clearInterval(this.statsTimer);
+      this.statsTimer = null;
+    }
     return new Promise((resolve) => {
       if (this.server) {
         this.server.close(() => resolve());

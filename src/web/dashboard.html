@@ -308,6 +308,7 @@
       <div id="status-pill" class="status-pill waiting">
         <div class="dot"></div>
         <span id="status-text">Очікування підключення Доти...</span>
+        <span id="perf-telemetry" style="margin-left: 8px; font-size: 11px; opacity: 0.7; font-family: monospace;"></span>
       </div>
     </header>
 
@@ -452,6 +453,10 @@
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.type === 'reload') {
+          window.location.reload();
+          return;
+        }
         updateUI(data);
       } catch (e) {
         console.error('SSE Error:', e);
@@ -477,7 +482,13 @@
     });
 
     function updateUI(data) {
-      const { state, alerts, advice } = data;
+      const { state, alerts, advice, perf } = data;
+
+      const perfEl = document.getElementById('perf-telemetry');
+      if (perf && perfEl) {
+        perfEl.innerText = `[RAM: ${perf.rssMb} MB | GSI: ${perf.gsiRate || 0}/s]`;
+      }
+
       if (!state) return;
 
       statusPill.className = 'status-pill';

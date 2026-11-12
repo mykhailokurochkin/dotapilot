@@ -6,9 +6,9 @@ const cfgContent = `"DotaPilot Integration"
 {
     "uri"           "http://127.0.0.1:3000/gsi"
     "timeout"       "5.0"
-    "buffer"        "0.1"
-    "throttle"      "0.1"
-    "heartbeat"     "30.0"
+    "buffer"        "0.5"
+    "throttle"      "3.0"
+    "heartbeat"     "10.0"
     "data"
     {
         "provider"      "1"
@@ -17,8 +17,8 @@ const cfgContent = `"DotaPilot Integration"
         "hero"          "1"
         "abilities"     "1"
         "items"         "1"
-        "draft"         "1"
-        "wearables"     "1"
+        "draft"         "0"
+        "wearables"     "0"
     }
 }
 `;

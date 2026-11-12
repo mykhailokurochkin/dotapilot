@@ -8,6 +8,8 @@
     "start": "node --experimental-strip-types src/index.ts",
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "overlay": "./bin/dotapilot-overlay",
+    "build:overlay": "clang -O2 -framework Cocoa -framework WebKit src/overlay/main.m -o bin/dotapilot-overlay",
+    "stop": "pkill -f 'dotapilot' || true",
     "install:cfg": "node --experimental-strip-types src/scripts/install-cfg.ts",
     "mock": "node --experimental-strip-types src/scripts/send-mock.ts"
   },
